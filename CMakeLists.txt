@@ -29,7 +29,7 @@ add_executable(${PROJECT_NAME}
         led.c
         led.h
 
-
+)
 # Create map/bin/hex/uf2 files
 pico_add_extra_outputs(${PROJECT_NAME})
 
