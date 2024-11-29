@@ -28,6 +28,7 @@ add_executable(${PROJECT_NAME}
         button.h
         led.c
         led.h
+        motor.c
 
 )
 # Create map/bin/hex/uf2 files

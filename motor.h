@@ -11,6 +11,7 @@ extern bool is_calibrated;
 void setup();
 void setSteps(int step);
 void rotate(int step_count);
+void fine_tune_position();
 void calibrate();
 void rotate_steps_512();
 int do_command(char *command);
