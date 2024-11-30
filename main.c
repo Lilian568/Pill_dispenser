@@ -55,7 +55,7 @@ int main() {
                     state2_logged = true;
                 }
 
-                uint64_t time_since_last_press = (last_time_sw2_pressed == nil_time)
+                uint64_t time_since_last_press = is_nil_time(last_time_sw2_pressed)
                                                      ? 0
                                                      : absolute_time_diff_us(last_time_sw2_pressed, current_time) / 1000;
 
@@ -69,9 +69,7 @@ int main() {
                     portion_count++;
                     last_time_sw2_pressed = current_time;
                     DEBUG_PRINT("Portion count incremented to %d after SW_2 press.", portion_count);
-                }
-
-                else if (time_since_last_press >= step_delay_ms && last_time_sw2_pressed != nil_time) {
+                } else if (time_since_last_press >= step_delay_ms && !is_nil_time(last_time_sw2_pressed)) {
                     DEBUG_PRINT("Step delay met, rotating motor...");
                     rotate_steps_512();
                     if (!isPillDispensed()) {
