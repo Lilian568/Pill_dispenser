@@ -52,6 +52,7 @@ int main() {
             case 2: // Dispensing state
                 if (!state2_logged) {
                     DEBUG_PRINT("State 2: Monitoring SW_2 for motor activation.");
+                    allLedsOn();
                     state2_logged = true;
                 }
 
