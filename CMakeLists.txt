@@ -29,6 +29,7 @@ add_executable(${PROJECT_NAME}
         led.c
         led.h
         motor.c
+        piezo.c
 
 )
 # Create map/bin/hex/uf2 files
