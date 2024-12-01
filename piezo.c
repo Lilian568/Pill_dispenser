@@ -15,21 +15,22 @@ void setupPiezoSensor() {
     gpio_pull_up(PIEZO_SENSOR_PIN);
 }
 bool isPillDispensed() {
-    const int check_count = 40000;            // Lisää tarkistuksia pidemmälle ajalle
-    const int spike_threshold = 1;           // Herkkä piikkien tunnistus
-    const int low_signal_threshold = 1;      // Maksimiherkkyys LOW-signaaleille
+    const int check_count = 100000;            // Amount of signal checkings (40000 = 0,04s)
+    const int spike_threshold = 1;           // Sensitivity for detecting spikes in signal
+    const int low_signal_threshold = 1;      // Max sensitivity for low signal
     const int integrated_signal_threshold = 30; // Alennettu alueen kynnys
-    const int low_signal_weight = 30;        // Lisää painotusta LOW-signaaleille
+    const int low_signal_weight = 30;        // More weight on LOW-signals
 
-    int high_count = 0;
-    int low_count = 0;
-    int spike_detected = 0;
-    int low_integrated_signal = 0;
-    int buffer[500] = {0};
-    int buffer_index = 0;
-    int sum = 0;
+    // Initializing the variables
+    int high_count = 0;     // Counter for HIGH signals
+    int low_count = 0;      // Counter for LOW signals
+    int spike_detected = 0; // Counter for signal state changes
+    int low_integrated_signal = 0;  // Sum of weighted LOW signals
+    int buffer[500] = {0};  // Circular buffer for signal filtering
+    int buffer_index = 0;   // Current index in the buffer
+    int sum = 0;            // Sum of buffer values for filtering
 
-    memset(buffer, 0, sizeof(buffer)); // Nollaa puskuri
+    memset(buffer, 0, sizeof(buffer)); // Initialize the buffer with zeros
 
     bool last_state = gpio_get(PIEZO_SENSOR_PIN);
 
@@ -39,7 +40,8 @@ bool isPillDispensed() {
         sum -= buffer[buffer_index];
         buffer[buffer_index] = current_state ? 1 : -1;
         sum += buffer[buffer_index];
-        buffer_index = (buffer_index + 1) % 500;
+        buffer_index = (buffer_index + 1) % 500; // Increment buffer index with wrap-around
+
 
         if (current_state) {
             high_count++;
@@ -56,12 +58,14 @@ bool isPillDispensed() {
         sleep_us(1);
     }
 
+    // Calculate the filtered average from the buffer
     int filtered_average = sum / 500;
 
-    bool result = (low_count >= low_signal_threshold ||
-                   spike_detected >= spike_threshold ||
-                   low_integrated_signal >= integrated_signal_threshold ||
-                   filtered_average < -2);
+    // Determine if a pill has been detected based on thresholds
+    bool result = (low_count >= low_signal_threshold || // Check if LOW signal count is sufficient
+                   spike_detected >= spike_threshold || // Check if spike count meets threshold
+                   low_integrated_signal >= integrated_signal_threshold || // Check integrated signal
+                   filtered_average < -2); // Check if filtered average indicates strong LOW signal
 
     if (result) {
         DEBUG_PRINT("Pill detected! High count = %d, Low count = %d, Spikes = %d, Integrated LOW Signal = %d, Filtered Avg = %d, Result = %d",

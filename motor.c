@@ -10,11 +10,11 @@
 #define MOTOR_PIN3 6
 #define MOTOR_PIN4 13
 
-int steps_per_revolution = -1; // Kalibroidut askeleet per kierros
-int steps_per_drop = -1;       // Kalibroidut askeleet per lääkkeen annostelu
-bool is_calibrated = false;    // Kalibroinnin tila
+int steps_per_revolution = -1; // Steps required for one full revolution
+int steps_per_drop = -1;       // Calibrated steps per one pill dispense
+bool is_calibrated = false;
 
-// Moottorin 8-vaiheinen askelsarja
+// Motor step sequence for an 8-step motor
 void setSteps(int step) {
     bool steps[8][4] = {
         {1, 0, 0, 0},
@@ -33,17 +33,18 @@ void setSteps(int step) {
     sleep_ms(1);
 }
 
+// Rotate the motor by a specified number of steps
 void rotate(int step_count) {
-    static int current_position = 0; // Seuraa moottorin tarkkaa askelpaikkaa
+    static int current_position = 0;
     for (int i = 0; i < step_count; i++) {
         current_position = (current_position + 1) % 8;
         setSteps(current_position);
     }
 }
-// Hienosäätää moottorin liikettä pienellä määrällä askeleita
+// Fine-tune the motor's position to ensure proper alignment
 void fine_tune_position() {
-    // Pyöritetään moottoria 1/16 kierrosta, mikä on pieni liike
-    rotate(steps_per_revolution / 12);  // Pienempi liike, 1/16 kierrosta
+    printf("Fine tuning the position\n");
+    rotate(steps_per_revolution / 12); // Perform a small rotation for fine alignment
 }
 
 void setup() {
@@ -61,6 +62,7 @@ void setup() {
     gpio_set_dir(MOTOR_PIN4, GPIO_OUT);
 }
 
+// Calibrate the motor to determine steps per revolution and steps per pill dispense
 void calibrate() {
     printf("Starting calibration...\n");
 
@@ -72,26 +74,26 @@ void calibrate() {
     for (int i = 0; i < actual_iterations; i++) {
         step_count = 0;
 
-        // Käännetään kunnes sensori ei enää laukea
+        // Rotate until the optofork detects the start position
         while (gpio_get(OPTOFORK_PIN)) {
             rotate(1);
             step_count++;
         }
         sleep_ms(100);
 
-        // Käännetään kunnes sensori laukeaa uudelleen
+        // Rotate until the optofork no longer detects the start position
         while (!gpio_get(OPTOFORK_PIN)) {
             rotate(1);
             step_count++;
         }
 
-        // Käännetään kunnes sensori ei enää laukea
+        // Continue rotating until the optofork detects the start position again
         while (gpio_get(OPTOFORK_PIN)) {
             rotate(1);
             step_count++;
         }
 
-        if (i > 0) { // Hylätään ensimmäinen kierros
+        if (i > 0) { // Ignore the first revolution for accuracy
             revolutions_total += step_count;
             printf("Valid revolution %d: %d steps\n", i, step_count);
         } else {
@@ -101,15 +103,15 @@ void calibrate() {
         sleep_ms(100);
     }
 
-    // Lasketaan askeleet per kierros ja askeleet per lääkkeen annostelu
+    // Calculate steps per revolution and steps per pill dispense
     steps_per_revolution = revolutions_total / valid_iterations;
-    steps_per_drop = steps_per_revolution / 8; // Yksi pilleri vastaa 1/8 kierrosta
+    steps_per_drop = steps_per_revolution / 8; // One pill = 1/8 revolution
     is_calibrated = true;
 
     printf("Calibration complete. Average steps per revolution: %d\n", steps_per_revolution);
     printf("Steps per drop: %d\n", steps_per_drop);
 
-    // Kohdistetaan moottori tarkasti lähtökohtaan
+    // Align the motor to the start position
     while (gpio_get(OPTOFORK_PIN)) {
         rotate(1);
     }
@@ -118,20 +120,14 @@ void calibrate() {
     }
     fine_tune_position();
 
-    // Fine-tuning alignment after calibration
-    /*for (int i = 0; i < 1; i++) {  // Adjust this value if necessary
-        rotate(-1);  // Slight backward rotation to fine-tune position
-        sleep_ms(100);
-    }*/
-
     printf("Motor aligned to start position.\n");
 }
 
 void rotate_steps_512() {
-    if (!is_calibrated) {
+    if (!is_calibrated) { // Ensure motor is calibrated before rotation
         printf("Motor is not calibrated. Cannot rotate.\n");
         return;
     }
     printf("Rotating %d steps (1 drop)...\n", steps_per_drop);
-    rotate(steps_per_drop);
+    rotate(steps_per_drop); // Rotate the motor by the calibrated steps for one pill
 }
