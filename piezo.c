@@ -18,7 +18,7 @@ bool isPillDispensed() {
     const int check_count = 100000;            // Amount of signal checkings (40000 = 0,04s)
     const int spike_threshold = 1;           // Sensitivity for detecting spikes in signal
     const int low_signal_threshold = 1;      // Max sensitivity for low signal
-    const int integrated_signal_threshold = 30; // Alennettu alueen kynnys
+    const int integrated_signal_threshold = 30; // Threshold for integrated LOW signal
     const int low_signal_weight = 30;        // More weight on LOW-signals
 
     // Initializing the variables
