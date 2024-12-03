@@ -19,7 +19,7 @@ volatile bool last_state = false;
 #define SPIKE_THRESHOLD 1
 #define LOW_SIGNAL_THRESHOLD 1
 #define INTEGRATED_SIGNAL_THRESHOLD 30
-#define ANALYSIS_DURATION_MS 100 // 5 sekuntia analyysille
+#define ANALYSIS_DURATION_MS 500 // 0.5 sekuntia analyysille
 
 // Piezo-anturin keskeytyksen käsittelijä
 void piezo_interrupt_handler(uint gpio, uint32_t events) {
