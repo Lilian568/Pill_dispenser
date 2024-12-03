@@ -2,86 +2,82 @@
 #include "hardware/gpio.h"
 #include <stdio.h>
 #include <string.h>
-
 #include "led.h"
 #include "pico/time.h"
 
 #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
-// Initialize the Piezo sensor
+// Globaaleja muuttujia signaalien seuraamiseen keskeytyksissä
+volatile int high_count = 0;
+volatile int low_count = 0;
+volatile int spike_count = 0;
+volatile int low_integrated_signal = 0;
+volatile bool last_state = false;
+
+// Analyysin parametrit
+#define LOW_SIGNAL_WEIGHT 30
+#define SPIKE_THRESHOLD 1
+#define LOW_SIGNAL_THRESHOLD 1
+#define INTEGRATED_SIGNAL_THRESHOLD 30
+#define ANALYSIS_DURATION_MS 100 // 5 sekuntia analyysille
+
+// Piezo-anturin keskeytyksen käsittelijä
+void piezo_interrupt_handler(uint gpio, uint32_t events) {
+    bool current_state = gpio_get(PIEZO_SENSOR_PIN);
+
+    if (current_state) {
+        high_count++;
+    } else {
+        low_count++;
+        low_integrated_signal += LOW_SIGNAL_WEIGHT;
+    }
+
+    if (current_state != last_state) {
+        spike_count++;
+    }
+
+    last_state = current_state;
+}
+
+// Piezo-anturin alustaminen ja keskeytysten asettaminen
 void setupPiezoSensor() {
     gpio_init(PIEZO_SENSOR_PIN);
     gpio_set_dir(PIEZO_SENSOR_PIN, GPIO_IN);
     gpio_pull_up(PIEZO_SENSOR_PIN);
+
+    // Rekisteröidään keskeytys GPIO:lle
+    gpio_set_irq_enabled_with_callback(PIEZO_SENSOR_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &piezo_interrupt_handler);
+
+    DEBUG_PRINT("Piezo sensor initialized and interrupt set up.\n");
 }
+
+// Pillerin tunnistuksen analyysi
 bool isPillDispensed() {
-    const int check_count = 100000;            // Amount of signal checkings (40000 = 0,04s)
-    const int spike_threshold = 1;           // Sensitivity for detecting spikes in signal
-    const int low_signal_threshold = 1;      // Max sensitivity for low signal
-    const int integrated_signal_threshold = 30; // Threshold for integrated LOW signal
-    const int low_signal_weight = 30;        // More weight on LOW-signals
+    // Nollaa laskurit ennen analyysin aloittamista
+    high_count = 0;
+    low_count = 0;
+    spike_count = 0;
+    low_integrated_signal = 0;
 
-    // Initializing the variables
-    int high_count = 0;     // Counter for HIGH signals
-    int low_count = 0;      // Counter for LOW signals
-    int spike_detected = 0; // Counter for signal state changes
-    int low_integrated_signal = 0;  // Sum of weighted LOW signals
-    int buffer[500] = {0};  // Circular buffer for signal filtering
-    int buffer_index = 0;   // Current index in the buffer
-    int sum = 0;            // Sum of buffer values for filtering
-
-    memset(buffer, 0, sizeof(buffer)); // Initialize the buffer with zeros
-
-    bool last_state = gpio_get(PIEZO_SENSOR_PIN);
-
-    for (int i = 0; i < check_count; i++) {
-        bool current_state = gpio_get(PIEZO_SENSOR_PIN);
-
-        sum -= buffer[buffer_index];
-        buffer[buffer_index] = current_state ? 1 : -1;
-        sum += buffer[buffer_index];
-        buffer_index = (buffer_index + 1) % 500; // Increment buffer index with wrap-around
-
-
-        if (current_state) {
-            high_count++;
-        } else {
-            low_count++;
-            low_integrated_signal += low_signal_weight;
-        }
-
-        if (last_state != current_state) {
-            spike_detected++;
-        }
-
-        last_state = current_state;
-        sleep_us(1);
+    // Analysoidaan signaaleja määritetyn ajan
+    absolute_time_t start_time = get_absolute_time();
+    while (absolute_time_diff_us(start_time, get_absolute_time()) < ANALYSIS_DURATION_MS * 1000) {
+        // Odotetaan keskeytysten täyttävän laskurit
+        tight_loop_contents();
     }
 
-    // Calculate the filtered average from the buffer
-    int filtered_average = sum / 500;
-
-    // Determine if a pill has been detected based on thresholds
-    bool result = (low_count >= low_signal_threshold || // Check if LOW signal count is sufficient
-                   spike_detected >= spike_threshold || // Check if spike count meets threshold
-                   low_integrated_signal >= integrated_signal_threshold || // Check integrated signal
-                   filtered_average < -2); // Check if filtered average indicates strong LOW signal
+    // Analyysin tulokset
+    bool result = (low_count >= LOW_SIGNAL_THRESHOLD ||
+                   spike_count >= SPIKE_THRESHOLD ||
+                   low_integrated_signal >= INTEGRATED_SIGNAL_THRESHOLD);
 
     if (result) {
         DEBUG_PRINT("Pill detected! High count = %d, Low count = %d, Spikes = %d, Integrated LOW Signal = %d, Filtered Avg = %d, Result = %d",
-                    high_count, low_count, spike_detected, low_integrated_signal, filtered_average, result);
+                    high_count, low_count,  low_integrated_signal, result);
     } else {
         DEBUG_PRINT("No pill detected. High count = %d, Low count = %d, Spikes = %d, Integrated LOW Signal = %d, Filtered Avg = %d, Result = %d",
-                    high_count, low_count, spike_detected, low_integrated_signal, filtered_average, result);
+                    high_count, low_count, low_integrated_signal, result);
     }
 
     return result;
-}
-void blinkError(int times) {
-    for (int i = 0; i < times; i++) {
-        allLedsOn();
-        sleep_ms(200);
-        allLedsOff();
-        sleep_ms(200);
-    }
 }
