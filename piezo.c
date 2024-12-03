@@ -81,3 +81,13 @@ bool isPillDispensed() {
 
     return result;
 }
+
+// Virheiden vilkkuminen LEDillä
+void blinkError(int times) {
+    for (int i = 0; i < times; i++) {
+        allLedsOn();  // Oletettu funktio LEDin sytyttämiseen
+        sleep_ms(200);
+        allLedsOff(); // Oletettu funktio LEDin sammuttamiseen
+        sleep_ms(200);
+    }
+}
