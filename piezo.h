@@ -7,10 +7,16 @@
 #define PIEZO_SENSOR_PIN 27 // GPIO pin for the Piezo sensor
 
 // Initialize the Piezo sensor
-void setupPiezoSensor();
+void setupPiezoSensor(void);
 
-// Check if a pill was dispensed
-bool isPillDispensed();
+// Enable Piezo sensor interrupt
+void enablePiezoInterrupt(void);
+
+// Disable Piezo sensor interrupt
+void disablePiezoInterrupt(void);
+
+// Dispense a pill and detect it using the piezo sensor
+bool dispenseAndDetectPill(void);
 
 // Blink an error using LEDs
 void blinkError(int times);

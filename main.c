@@ -20,7 +20,7 @@ int main() {
 
     int state = 1;
     absolute_time_t last_time_sw2_pressed = nil_time; // Timestamp of the last SW_2 press
-    const uint32_t step_delay_ms = 30000; // Delay between motor rotations in milliseconds
+    const uint32_t step_delay_ms = 5000; // Delay between motor rotations in milliseconds
     int portion_count = 0; // Counter for dispensed portions
     const int max_portion = 7; // Maximum allowed portions before resetting
 
@@ -64,23 +64,27 @@ int main() {
 
                 if (isButtonPressed(SW_2)) {
                     allLedsOff();
-                    DEBUG_PRINT("SW_2 button pressed. Immediate motor activation...");
-                    rotate_steps_512();
-                    if (!isPillDispensed()) {
+                    DEBUG_PRINT("SW_2 button pressed. Attempting to dispense pill...");
+
+                    // Use updated `dispenseAndDetectPill()` function
+                    if (!dispenseAndDetectPill()) {
                         DEBUG_PRINT("Pill not detected! Blinking LED 5 times.");
                         blinkError(5);
+                    } else {
+                        DEBUG_PRINT("Pill successfully dispensed.");
                     }
-                    portion_count++;
+                    portion_count ++;
                     last_time_sw2_pressed = current_time;
                     DEBUG_PRINT("Portion count incremented to %d after SW_2 press.", portion_count);
 
                 } else if (time_since_last_press >= step_delay_ms && !is_nil_time(last_time_sw2_pressed)) {
-                    // Check if delay period has passed since last motor activation
-                    DEBUG_PRINT("Step delay met, rotating motor...");
-                    rotate_steps_512();
-                    if (!isPillDispensed()) {
+                    DEBUG_PRINT("Step delay met. Attempting to dispense pill...");
+
+                    if (!dispenseAndDetectPill()) {
                         DEBUG_PRINT("Pill not detected! Blinking LED 5 times.");
                         blinkError(5);
+                    } else {
+                        DEBUG_PRINT("Pill successfully dispensed.");
                     }
                     portion_count++;
                     last_time_sw2_pressed = current_time;
@@ -102,7 +106,7 @@ int main() {
                 break;
         }
 
-        sleep_ms(200);
+        sleep_ms(200); // Sleep to avoid busy looping
     }
 
     return 0;
