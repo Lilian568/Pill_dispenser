@@ -9,9 +9,10 @@
 #define MOTOR_PIN2 3
 #define MOTOR_PIN3 6
 #define MOTOR_PIN4 13
+#define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
-int steps_per_revolution = -1; // Steps required for one full revolution
-int steps_per_drop = -1;       // Calibrated steps per one pill dispense
+int steps_per_revolution = -1; // Steps for full revolution
+int steps_per_drop = -1;       // Steps between one block (per pill dispense)
 bool is_calibrated = false;
 
 // Motor step sequence for an 8-step motor
@@ -33,7 +34,7 @@ void setSteps(int step) {
     sleep_ms(1);
 }
 
-// Rotate the motor by a specified number of steps
+// Rotate the motor
 void rotate(int step_count) {
     static int current_position = 0;
     for (int i = 0; i < step_count; i++) {
@@ -41,10 +42,9 @@ void rotate(int step_count) {
         setSteps(current_position);
     }
 }
-// Fine-tune the motor's position to ensure proper alignment
+// Fine-tuning the motor position to align the piezo sensor just below the hole
 void fine_tune_position() {
-    printf("Fine tuning the position\n");
-    rotate(steps_per_revolution / 12); // Perform a small rotation for fine alignment
+    rotate(steps_per_revolution / 12);
 }
 
 void setup() {
@@ -62,9 +62,9 @@ void setup() {
     gpio_set_dir(MOTOR_PIN4, GPIO_OUT);
 }
 
-// Calibrate the motor to determine steps per revolution and steps per pill dispense
+// Calibrating steps per revolution and steps per dispense
 void calibrate() {
-    printf("Starting calibration...\n");
+    printf("Calibrating motor...\n");
 
     int step_count = 0;
     int revolutions_total = 0;
@@ -95,11 +95,7 @@ void calibrate() {
 
         if (i > 0) { // Ignore the first revolution for accuracy
             revolutions_total += step_count;
-            printf("Valid revolution %d: %d steps\n", i, step_count);
-        } else {
-            printf("Ignored revolution %d: %d steps\n", i + 1, step_count);
         }
-
         sleep_ms(100);
     }
 
@@ -108,8 +104,6 @@ void calibrate() {
     steps_per_drop = steps_per_revolution / 8; // One pill = 1/8 revolution
     is_calibrated = true;
 
-    printf("Calibration complete. Average steps per revolution: %d\n", steps_per_revolution);
-    printf("Steps per drop: %d\n", steps_per_drop);
 
     // Align the motor to the start position
     while (gpio_get(OPTOFORK_PIN)) {
@@ -119,15 +113,14 @@ void calibrate() {
         rotate(1);
     }
     fine_tune_position();
-
-    printf("Motor aligned to start position.\n");
+    DEBUG_PRINT("Steps per revolution: %d. Steps per drop: %d\n", steps_per_revolution, steps_per_drop);
+    printf("Calibration complete.\n");
 }
 
 void rotate_steps_512() {
     if (!is_calibrated) { // Ensure motor is calibrated before rotation
-        printf("Motor is not calibrated. Cannot rotate.\n");
+        DEBUG_PRINT("Motor is not calibrated. Cannot rotate.\n");
         return;
     }
-    printf("Rotating %d steps (1 drop)...\n", steps_per_drop);
     rotate(steps_per_drop); // Rotate the motor by the calibrated steps for one pill
 }
