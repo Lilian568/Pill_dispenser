@@ -5,11 +5,11 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 
-// Macro for debug printing
+// Debug printing macro
 #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
 int main() {
-    // Initialize components
+    // Initializing
     timer_hw->dbgpause = 0;
     stdio_init_all();
     ledsInit();
@@ -19,8 +19,8 @@ int main() {
     setupPiezoSensor();
 
     int state = 1;
-    absolute_time_t last_time_sw2_pressed = nil_time; // Timestamp of the last SW_2 press
-    const uint32_t step_delay_ms = 5000; // Delay between motor rotations in milliseconds
+    absolute_time_t last_time_sw2_pressed = nil_time; // Timestamp for dispensing
+    const uint32_t step_delay_ms = 15000; // Delay between motor rotations in milliseconds
     int portion_count = 0; // Counter for dispensed portions
     const int max_portion = 7; // Maximum allowed portions before resetting
 
@@ -33,56 +33,53 @@ int main() {
         switch (state) {
             case 1: // Calibration state
                 if (!state1_logged) {
-                    DEBUG_PRINT("State 1: Waiting for SW_0 button to start calibration.");
+                    printf("Press SW0, to start the calibration.\n");
                     state1_logged = true;
                 }
 
-                blink(); // Blink LEDs to indicate waiting in calibration state
+                blink();
 
                 if (isButtonPressed(SW_0)) {
-                    DEBUG_PRINT("SW_0 button pressed, starting calibration...");
                     calibrate();
                     state = 2;
                     state1_logged = false;
                     state2_logged = false;
-                    DEBUG_PRINT("Calibration complete, moving to state 2.");
                     last_time_sw2_pressed = nil_time;
                 }
                 break;
 
             case 2: // Dispensing state
                 if (!state2_logged) {
-                    DEBUG_PRINT("State 2: Monitoring SW_2 for motor activation.");
+                    printf("Press SW2, to activate dispensing.\n");
                     allLedsOn();
                     state2_logged = true;
                 }
 
-                // Calculate time since last SW_2 button press
+                // Time calculations for motor rotating
                 uint64_t time_since_last_press = is_nil_time(last_time_sw2_pressed)
                                                      ? 0
                                                      : absolute_time_diff_us(last_time_sw2_pressed, current_time) / 1000;
 
                 if (isButtonPressed(SW_2)) {
                     allLedsOff();
-                    DEBUG_PRINT("SW_2 button pressed. Attempting to dispense pill...");
+                    printf("Pill dispensing activated.\n");
 
-                    // Use updated `dispenseAndDetectPill()` function
-                    if (!dispenseAndDetectPill()) {
+                    if (!dispensingAndDetecting()) {
                         DEBUG_PRINT("Pill not detected! Blinking LED 5 times.");
-                        blinkError(5);
+                        blinkE(5);
                     } else {
                         DEBUG_PRINT("Pill successfully dispensed.");
                     }
                     portion_count ++;
                     last_time_sw2_pressed = current_time;
-                    DEBUG_PRINT("Portion count incremented to %d after SW_2 press.", portion_count);
+                    DEBUG_PRINT("Portion count incremented to %d", portion_count);
 
                 } else if (time_since_last_press >= step_delay_ms && !is_nil_time(last_time_sw2_pressed)) {
-                    DEBUG_PRINT("Step delay met. Attempting to dispense pill...");
+                    DEBUG_PRINT("Attempting to dispense a pill");
 
-                    if (!dispenseAndDetectPill()) {
+                    if (!dispensingAndDetecting()) {
                         DEBUG_PRINT("Pill not detected! Blinking LED 5 times.");
-                        blinkError(5);
+                        blinkE(5);
                     } else {
                         DEBUG_PRINT("Pill successfully dispensed.");
                     }
@@ -92,7 +89,7 @@ int main() {
                 }
 
                 if (portion_count >= max_portion) { // Check if max portions have been dispensed
-                    DEBUG_PRINT("Max portion count reached. Resetting portion count and turning off LEDs.");
+                    DEBUG_PRINT("Max portion count reached.");
                     portion_count = 0;
                     allLedsOff();
                     state = 1;
@@ -106,7 +103,7 @@ int main() {
                 break;
         }
 
-        sleep_ms(200); // Sleep to avoid busy looping
+        sleep_ms(200);
     }
 
     return 0;
