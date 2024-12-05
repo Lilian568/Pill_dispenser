@@ -16,9 +16,9 @@ void enablePiezoInterrupt(void);
 void disablePiezoInterrupt(void);
 
 // Dispense a pill and detect it using the piezo sensor
-bool dispenseAndDetectPill(void);
+bool dispensingAndDetecting(void);
 
 // Blink an error using LEDs
-void blinkError(int times);
+void blinkE(int times);
 
 #endif // PIEZO_H
