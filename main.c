@@ -14,9 +14,9 @@
 #include "watchdog.h"
 
 #ifdef DEBUG_PRINT
-#define DBG_PRINT(f_, ...)  printf((f_), ##__VA_ARGS__)
+#define DEBUG_PRINT(f_, ...)  printf((f_), ##__VA_ARGS__)
 #else
-#define DBG_PRINT(f_, ...)
+#define DEBUG_PRINT(f_, ...)
 #endif
 
 //#define DEBUG
@@ -386,7 +386,7 @@ void resetValues() {
  * \remarks:
  **********************************************************************************************************************/
 void eepromLorawanComm(const char* message, size_t msg_size) {
-    DBG_PRINT("%s\n", message);
+    DEBUG_PRINT("%s\n", message);
     writeLogEntry(message);
     write_to_eeprom(&machine);
 #ifdef LORAWAN_CONN
