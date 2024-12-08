@@ -79,7 +79,7 @@ bool dispensingAndDetecting() {
 }
 
 // Blink LEDs
-void blinkE(int times) {
+void blinkError(int times) {
     for (int i = 0; i < times; i++) {
         allLedsOn();
         sleep_ms(200);
