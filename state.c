@@ -59,8 +59,8 @@ bool write_to_eeprom_internal(const DeviceState *state) {
         return false;
     }
 
-    DEBUG_PRINT("State written to EEPROM successfully: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
-                state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
+    //DEBUG_PRINT("State written to EEPROM successfully: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                //state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
     return true;
 }
 
@@ -95,8 +95,8 @@ bool read_from_eeprom_internal(DeviceState *state) {
         return false;
     }
 
-    DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
-                state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
+    //DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                //state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
     return true;
 }
 

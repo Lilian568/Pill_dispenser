@@ -4,8 +4,11 @@
 #include "piezo.h"
 #include "state.h"
 #include <stdio.h>
+#include <string.h>
+
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "lorawan.h"
 
 #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
@@ -37,6 +40,18 @@ void maybe_update_eeprom_periodically() {
     }
 }
 
+// Function to send a message over LoRaWAN
+void send_lorawan_message(const char *message) {
+    printf("Sending LoRaWAN message: %s\n", message);
+    char retval_str[256];
+
+    if (!loraMessage(message, strlen(message), retval_str)) {
+        printf("[ERROR] Failed to send LoRaWAN message: %s\n", message);
+    } else {
+        printf("[INFO] LoRaWAN message sent successfully: %s\n", retval_str);
+    }
+}
+
 int main() {
     // Prevent debug timer from pausing during debugging
     timer_hw->dbgpause = 0;
@@ -53,11 +68,23 @@ int main() {
     buttonsInit();
     setup();
     setupPiezoSensor();
+    loraWanInit();
+
 
     // Initialize EEPROM update timer
     last_eeprom_update_time = get_absolute_time();
     last_saved_motor_step = get_current_motor_step();
-
+    // Initialize LoRaWAN
+    printf("Initializing LoRaWAN...\n");
+    bool lora_connected = false;
+    while (!lora_connected) {
+        lora_connected = loraInit();
+        if (!lora_connected) {
+            printf("LoRaWAN connection failed, retrying...\n");
+            sleep_ms(5000);
+        }
+    }
+    printf("LoRaWAN connected.\n");
     DeviceState deviceState;
 
     // Safely load the state from EEPROM
@@ -82,7 +109,7 @@ int main() {
     if (deviceState.motor_calibrated) {
         steps_per_revolution = deviceState.steps_per_revolution;
         steps_per_drop = deviceState.steps_per_drop;
-        DEBUG_PRINT("Motor calibration data loaded.\n");
+        DEBUG_PRINT("Motor calibratiaon data loaded.\n");
         reset_and_realign();
         maybe_update_eeprom_periodically();
     }
@@ -100,6 +127,7 @@ int main() {
         switch (deviceState.current_state) {
             case 1: // Calibration state
                 if (!state1_logged) {
+                    send_lorawan_message("Calibration started.");
                     printf("Press SW0 to start calibration.\n");
                     state1_logged = true;
                 }
@@ -108,6 +136,7 @@ int main() {
 
                 if (isButtonPressed(SW_0)) {
                     calibrate();
+                    send_lorawan_message("Calibration completed.");
                     deviceState.current_state = 2; // Move to dispensing state
                     deviceState.motor_calibrated = true;
                     deviceState.steps_per_revolution = steps_per_revolution;
@@ -126,6 +155,7 @@ int main() {
 
             case 2: // Dispensing state
                 if (!state2_logged) {
+                    send_lorawan_message("Dispensing started.");
                     printf("Press SW2 for dispensing.\n");
                     allLedsOn();
                     state2_logged = true;
@@ -140,9 +170,11 @@ int main() {
                     printf("Dispensing activated.\n");
 
                     if (!dispensingAndDetecting()) {
+                        send_lorawan_message("Pill not detected during dispensing.");
                         printf("Pill not detected.\n");
                         blinkError(5);
                     } else {
+                        send_lorawan_message("Pill detected during dispensing.");
                         printf("Pill dispensed.\n");
                     }
 
@@ -157,9 +189,11 @@ int main() {
                     DEBUG_PRINT("Time delay met. Rotating motor.\n");
 
                     if (!dispensingAndDetecting()) {
+                        send_lorawan_message("Pill not detected during dispensing.");
                         printf("Pill not detected.\n");
                         blinkError(5);
                     } else {
+                        send_lorawan_message("Pill detected during dispensing.");
                         printf("Pill dispensed.\n");
                     }
 
@@ -173,6 +207,7 @@ int main() {
                 }
 
                 if (deviceState.portion_count >= max_portion) {
+                    send_lorawan_message("Max portions reached.");
                     DEBUG_PRINT("Max portions reached. Resetting.\n");
                     deviceState.current_state = 1; // Reset to calibration state
                     deviceState.portion_count = 0;

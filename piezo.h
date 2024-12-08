@@ -19,6 +19,6 @@ void disablePiezoInterrupt(void);
 bool dispensingAndDetecting(void);
 
 // Blink an error using LEDs
-void blinkE(int times);
+void blinkError(int times);
 
 #endif // PIEZO_H
