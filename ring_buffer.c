@@ -19,7 +19,9 @@ bool rb_empty(ring_buffer *rb) {
 }
 
 bool rb_put(ring_buffer *rb, uint8_t data) {
+    // calculate new head (position where to store the value)
     int nh =(rb-> head +1) % rb->size;
+    // calculate new head (position where to store the value)
     if (nh == rb->tail) return false;
 
     rb -> buffer[rb->head] = data;
