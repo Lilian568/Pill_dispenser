@@ -42,7 +42,7 @@ void send_uart_command(const char *command) {
     char cmd_with_newline[512];
     snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", command);
     uart_puts(UART_ID, cmd_with_newline);
-    printf("Sent command: %s", cmd_with_newline);
+    //printf("Sent command: %s", cmd_with_newline);
 
     for (size_t i = 0; i < strlen(cmd_with_newline); i++) {
         //printf("Sent char[%zu]: 0x%x\n", i, cmd_with_newline[i]);
@@ -85,7 +85,7 @@ bool read_uart_response(char *response, size_t response_len) {
         if (absolute_time_diff_us(get_absolute_time(), char_timeout) <= 0) {
             if (index > 0) { // Jos olemme saaneet osittaisen vastauksen, hyväksy se
                 response[index] = '\0';
-                printf("Partial response timeout. Received so far: %s\n", response);
+                //printf("Partial response timeout. Received so far: %s\n", response);
                 return true;
             }
         }
@@ -95,7 +95,7 @@ bool read_uart_response(char *response, size_t response_len) {
 bool check_module_connection() {
     char response[128];
     for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        printf("Sending 'AT' command (attempt %d)...\n", attempt);
+        //printf("Sending 'AT' command (attempt %d)...\n", attempt);
         send_uart_command("AT\r\n");
 
         if (read_uart_response(response, sizeof(response))) {
@@ -126,7 +126,7 @@ bool loraInit() {
 
             // Käydään läpi kaikki LoRaWAN-komennot
             for (int i = 0; i < sizeof(lorawan) / sizeof(lorawan[0]); i++) {
-                printf("Sending command: %s\n", lorawan[i].command);
+                //printf("Sending command: %s\n", lorawan[i].command);
                 send_uart_command(lorawan[i].command);
                 sleep_ms(lorawan[i].sleep_time);
 
@@ -145,7 +145,7 @@ bool loraInit() {
                         break; // Keskeytä ja yritä uudelleen
                     }
                 } else {
-                    printf("Command successful: %s\n", lorawan[i].command);
+                    //printf("Command successful: %s\n", lorawan[i].command);
                 }
             }
 
@@ -166,9 +166,9 @@ bool process_join_response(const char *initial_response) {
 
     // Tarkista ensimmäinen vastaus
     if (strstr(initial_response, "+JOIN: NORMAL")) {
-        printf("Join normal. Waiting for further confirmation...\n");
+        //printf("Join normal. Waiting for further confirmation...\n");
     } else if (strstr(initial_response, "+JOIN: Start")) {
-        printf("Join process started. Waiting for further responses...\n");
+        //printf("Join process started. Waiting for further responses...\n");
     } else {
         printf("Unexpected join response: %s\n", initial_response);
         return false;
@@ -178,11 +178,12 @@ bool process_join_response(const char *initial_response) {
     absolute_time_t timeout = make_timeout_time_ms(MSG_WAITING_TIME);
     while (absolute_time_diff_us(get_absolute_time(), timeout) > 0) {
         if (read_uart_response(response, sizeof(response))) {
-            printf("Received response: %s\n", response);
+            //printf("Received response: %s\n", response);
 
             // Tarkista liittymisen hyväksyntä
             if (strstr(response, "+JOIN: Done")) {
-                printf("Join successful. Network ready.\n");
+                //printf("Join successful. Network ready.\n");
+                sleep_ms(MSG_WAITING_TIME);
                 return true; // Liittyminen onnistui
             }
 
@@ -211,6 +212,6 @@ bool loraMessage(const char *message, size_t msg_size, char *return_message) {
         return false;
     }
 
-    printf("Message sent successfully: %s\n", return_message);
+    //printf("Message sent successfully: %s\n", return_message);
     return true;
 }

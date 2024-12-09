@@ -16,53 +16,24 @@
 static absolute_time_t last_eeprom_update_time;
 static int last_saved_motor_step = -1;
 
-// Function to periodically update EEPROM with motor step information
-void maybe_update_eeprom_periodically() {
-    absolute_time_t now = get_absolute_time();
-    uint64_t diff = absolute_time_diff_us(last_eeprom_update_time, now);
 
-    // Update EEPROM approximately every 50ms (50000 µs)
-    if (diff >= 50000) {
-        int current_step = get_current_motor_step();
-        if (current_step != last_saved_motor_step) {
-            DeviceState deviceState;
-            if (safe_read_from_eeprom(&deviceState)) {
-                deviceState.current_motor_step = current_step;
-                if (safe_write_to_eeprom(&deviceState)) {
-                    DEBUG_PRINT("Periodic EEPROM update: current_motor_step=%d\n", current_step);
-                    last_saved_motor_step = current_step;
-                } else {
-                    DEBUG_PRINT("EEPROM update failed at step: %d\n", current_step);
-                }
-            }
-        }
-        last_eeprom_update_time = now;
-    }
-}
 
 // Function to send a message over LoRaWAN
 void send_lorawan_message(const char *message) {
-    printf("Sending LoRaWAN message: %s\n", message);
+    //printf("Sending LoRaWAN message: %s\n", message);
     char retval_str[256];
 
     if (!loraMessage(message, strlen(message), retval_str)) {
-        printf("[ERROR] Failed to send LoRaWAN message: %s\n", message);
+        //printf("[ERROR] Failed to send LoRaWAN message: %s\n", message);
     } else {
-        printf("[INFO] LoRaWAN message sent successfully: %s\n", retval_str);
+        //printf("[INFO] LoRaWAN message sent successfully: %s\n", retval_str);
     }
 }
 
 int main() {
-    // Prevent debug timer from pausing during debugging
     timer_hw->dbgpause = 0;
-
-    // Initialize standard I/O
     stdio_init_all();
-
-    // Initialize EEPROM
     eepromInit();
-
-    // Initialize devices
     ledsInit();
     pwmInit();
     buttonsInit();
@@ -70,11 +41,9 @@ int main() {
     setupPiezoSensor();
     loraWanInit();
 
-
-    // Initialize EEPROM update timer
     last_eeprom_update_time = get_absolute_time();
     last_saved_motor_step = get_current_motor_step();
-    // Initialize LoRaWAN
+
     printf("Initializing LoRaWAN...\n");
     bool lora_connected = false;
     while (!lora_connected) {
@@ -110,8 +79,6 @@ int main() {
         steps_per_revolution = deviceState.steps_per_revolution;
         steps_per_drop = deviceState.steps_per_drop;
         DEBUG_PRINT("Motor calibratiaon data loaded.\n");
-        reset_and_realign();
-        maybe_update_eeprom_periodically();
     }
 
     // Main program states and variables
@@ -119,7 +86,7 @@ int main() {
     bool state2_logged = false;
     absolute_time_t last_time_sw2_pressed = nil_time;
     const uint32_t step_delay_ms = 5000; // Delay between steps in milliseconds
-    const int max_portion = 1;           // Maximum portions allowed
+    const int max_portion = 7;           // Maximum portions allowed
 
     while (true) {
         absolute_time_t current_time = get_absolute_time();
@@ -223,8 +190,6 @@ int main() {
                 break;
         }
 
-        // Periodically update EEPROM
-        maybe_update_eeprom_periodically();
 
         sleep_ms(200);
     }

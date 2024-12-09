@@ -17,7 +17,9 @@ typedef struct DeviceState {
     int fine_tune_steps;        // Fine-tuning steps for alignment
     uint32_t checksum;          // Checksum for data integrity
     bool in_progress;           // Indicates if the motor is in progress
-    int start_motor_step;       // Start step of the motor's current operation
+    int start_motor_step;
+    bool motor_was_rotating;
+    bool calibrating;
 } DeviceState;
 
 // External mutex for EEPROM operations

@@ -1,8 +1,10 @@
-#include <stdio.h>
+
 #include <unistd.h>
 #include "pico/stdlib.h"
 #include <string.h>
 #include "motor.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include "state.h"
 
@@ -19,32 +21,6 @@ int steps_per_revolution = -1; // Number of steps per revolution
 int steps_per_drop = -1;       // Number of steps per pill drop
 int current_motor_step = 0;    // Current motor step
 bool is_calibrated = false;    // Calibration status
-
-volatile bool eeprom_write_requested = false; // Flag for EEPROM write requests
-volatile DeviceState eeprom_write_buffer;     // Buffer for EEPROM writes
-
-// Returns the current motor step
-int get_current_motor_step() {
-    return current_motor_step;
-}
-
-// Sets the current motor step using modulo operation to handle overflow
-void set_current_motor_step(int step) {
-    if (steps_per_revolution > 0) {
-        current_motor_step = (step % steps_per_revolution + steps_per_revolution) % steps_per_revolution;
-    } else {
-        current_motor_step = step;
-    }
-}
-
-// Fine-tunes the motor position after calibration
-void fine_tune_position() {
-    if (steps_per_revolution > 0) {
-        int fine_tune_steps = steps_per_revolution / 13;
-        DEBUG_PRINT("Fine-tuning position by %d steps.\n", fine_tune_steps);
-        rotate(fine_tune_steps, false);
-    }
-}
 
 // Sets the motor step by activating the corresponding GPIO pins
 void setSteps(int step) {
@@ -66,70 +42,18 @@ void setSteps(int step) {
     sleep_ms(1); // Delay to stabilize the motor
 }
 
-// Motor calibration function
-void calibrate() {
-    printf("Calibrating motor...\n");
+// Returns the current motor step
+int get_current_motor_step() {
+    return current_motor_step;
+}
 
-    int step_count = 0;
-    int revolutions_total = 0;
-    const int valid_iterations = 1; // Number of calibration iterations
-
-    // Perform calibration iterations
-    for (int i = 0; i <= valid_iterations; i++) {
-        step_count = 0;
-
-        // Rotate until the optical sensor detects a full revolution
-        while (gpio_get(OPTOFORK_PIN)) {
-            rotate(1, false);
-            step_count++;
-            sleep_ms(1);
-        }
-        while (gpio_get(OPTOFORK_PIN) == 0) {
-            rotate(1, false);
-            step_count++;
-            sleep_ms(1);
-        }
-
-        // Count steps only after the first iteration
-        if (i > 0) {
-            revolutions_total += step_count;
-        }
+// Sets the current motor step using modulo operation to handle overflow
+void set_current_motor_step(int step) {
+    if (steps_per_revolution > 0) {
+        current_motor_step = (step % steps_per_revolution + steps_per_revolution) % steps_per_revolution;
+    } else {
+        current_motor_step = step;
     }
-
-    steps_per_revolution = (revolutions_total / valid_iterations);
-    steps_per_drop = steps_per_revolution / 8; // Divide steps per revolution into 8 drops
-    is_calibrated = true;
-    printf("Steps: %d", steps_per_revolution);
-
-    // Align motor to the initial position
-    while (gpio_get(OPTOFORK_PIN)) {
-        rotate(1, false);
-        sleep_ms(1);
-    }
-    sleep_ms(100);
-    while (!gpio_get(OPTOFORK_PIN)) {
-        rotate(1, false);
-        sleep_ms(1);
-    }
-    sleep_ms(100);
-
-    fine_tune_position();
-    sleep_ms(100);
-
-    current_motor_step = 0;
-
-    // Initialize and save state to EEPROM
-    DeviceState deviceState = {1};
-    deviceState.current_motor_step = current_motor_step;
-    deviceState.steps_per_revolution = steps_per_revolution;
-    deviceState.steps_per_drop = steps_per_drop;
-    deviceState.motor_calibrated = is_calibrated;
-
-    if (!safe_write_to_eeprom(&deviceState)) {
-        DEBUG_PRINT("Calibration: Failed to save state to EEPROM.\n");
-    }
-
-    printf("Calibration complete.\n");
 }
 
 // Rotate the motor by a given number of steps
@@ -137,35 +61,95 @@ void rotate(int step_count, bool update_eeprom) {
     int direction = (step_count > 0) ? 1 : -1; // Determine rotation direction
     step_count = abs(step_count);
 
-    DeviceState deviceState;
-    if (update_eeprom) {
-        if (!safe_read_from_eeprom(&deviceState)) {
-            DEBUG_PRINT("rotate: Failed to read EEPROM before movement.\n");
-            return;
-        }
-        deviceState.in_progress = true;
-        deviceState.start_motor_step = current_motor_step;
-        safe_write_to_eeprom(&deviceState);
-    }
-
     for (int i = 0; i < step_count; i++) {
         current_motor_step = (current_motor_step + direction + steps_per_revolution) % steps_per_revolution;
         setSteps(current_motor_step % 8);
+    }
 
-        // Update EEPROM for each step if requested
-        if (update_eeprom) {
+    if (update_eeprom) {
+        DeviceState deviceState;
+        if (safe_read_from_eeprom(&deviceState)) {
             deviceState.current_motor_step = current_motor_step;
+            deviceState.motor_was_rotating = true; // Mark motor as rotating
             safe_write_to_eeprom(&deviceState);
-            DEBUG_PRINT("rotate: Updated EEPROM at step %d.\n", current_motor_step);
+        }
+    }
+}
+
+// Fine-tunes the motor position after calibration
+void fine_tune_position() {
+    if (steps_per_revolution > 0) {
+        int fine_tune_steps = steps_per_revolution / 13;
+        DEBUG_PRINT("Fine-tuning position by %d steps.\n", fine_tune_steps);
+        rotate(fine_tune_steps, false);
+    }
+}
+void fine_tune_position_2() {
+    if (steps_per_revolution > 0) {
+        int fine_tune_steps = steps_per_revolution / 12;
+        DEBUG_PRINT("Fine-tuning position by %d steps.\n", fine_tune_steps);
+        rotate(fine_tune_steps, false);
+    }
+}
+
+// Motor calibration function
+void calibrate() {
+    printf("Calibrating motor...\n");
+
+    DeviceState deviceState;
+    if (safe_read_from_eeprom(&deviceState)) {
+        deviceState.motor_was_rotating = true; // Mark motor as rotating during calibration
+        deviceState.calibrating = true;       // Mark calibration as in progress
+        safe_write_to_eeprom(&deviceState);
+    }
+
+    int step_count = 0;
+    int revolutions_total = 0;
+    const int valid_iterations = 1; // Number of calibration iterations
+
+    for (int i = 0; i <= valid_iterations; i++) {
+        step_count = 0;
+
+        // Rotate forward until the optical sensor detects a full revolution
+        while (gpio_get(OPTOFORK_PIN)) {
+            rotate(1, false);
+            step_count++;
+            sleep_ms(1);
+        }
+        while (!gpio_get(OPTOFORK_PIN)) {
+            rotate(1, false);
+            step_count++;
+            sleep_ms(1);
+        }
+
+        if (i > 0) {
+            revolutions_total += step_count;
         }
     }
 
-    // Finalize the movement and update EEPROM
-    if (update_eeprom) {
-        deviceState.current_motor_step = current_motor_step;
-        deviceState.in_progress = false;
+    steps_per_revolution = (revolutions_total / valid_iterations);
+    steps_per_drop = steps_per_revolution / 8;
+    is_calibrated = true;
+
+    DEBUG_PRINT("Calibration complete. Steps per revolution: %d, Steps per drop: %d\n", steps_per_revolution, steps_per_drop);
+
+    fine_tune_position();
+    sleep_ms(100);
+
+    current_motor_step = 0;
+
+
+
+    // Mark calibration as complete
+    if (safe_read_from_eeprom(&deviceState)) {
+        deviceState.motor_calibrated = true;
+        deviceState.current_state = 2;
+        deviceState.steps_per_revolution = steps_per_revolution;
+        deviceState.steps_per_drop = steps_per_drop;
+        deviceState.current_motor_step = 0;
+        deviceState.motor_was_rotating = false; // Calibration complete, motor not rotating
+        deviceState.calibrating = false;       // Calibration complete
         safe_write_to_eeprom(&deviceState);
-        DEBUG_PRINT("rotate: Final EEPROM update. Step: %d, in_progress: false.\n", current_motor_step);
     }
 }
 
@@ -182,25 +166,29 @@ void reset_and_realign() {
         return;
     }
 
-    if (deviceState.current_motor_step == 0) {
-        DEBUG_PRINT("reset_and_realign: Motor already aligned at step 0.\n");
-        return;
+    DEBUG_PRINT("reset_and_realign: Moving back to sensor...\n");
+    while (gpio_get(OPTOFORK_PIN) == 1) {
+        rotate(-1, false);
+        sleep_ms(1);
     }
+        fine_tune_position_2();
 
-    int steps_to_reverse = (deviceState.current_motor_step + steps_per_revolution) % steps_per_revolution;
+    //DEBUG_PRINT("reset_and_realign: Fine-tuning position after reaching sensor.\n");
+    //fine_tune_position();
 
-    DEBUG_PRINT("reset_and_realign: Reversing %d steps to realign.\n", steps_to_reverse);
-    rotate(-steps_to_reverse, false);
+    DEBUG_PRINT("reset_and_realign: Moving to saved step: %d\n", deviceState.current_motor_step);
+    rotate(deviceState.current_motor_step, false);
 
-    current_motor_step = 0;
-    deviceState.current_motor_step = current_motor_step;
+    current_motor_step = deviceState.current_motor_step;
     deviceState.in_progress = false;
+    deviceState.motor_was_rotating = false;
+    printf("in progress = false");
     safe_write_to_eeprom(&deviceState);
 
-    DEBUG_PRINT("reset_and_realign: Motor realigned to step 0.\n");
+    DEBUG_PRINT("reset_and_realign: Motor realigned to step: %d\n", current_motor_step);
 }
 
-// Rotate motor for dispensing one drop (512 steps)
+// Rotate motor for dispensing one drop
 void rotate_steps_512() {
     if (!is_calibrated) {
         calibrate();
@@ -208,23 +196,19 @@ void rotate_steps_512() {
 
     DeviceState deviceState;
     if (safe_read_from_eeprom(&deviceState)) {
-        deviceState.in_progress = true;
-        deviceState.start_motor_step = current_motor_step;
+        deviceState.motor_was_rotating = true; // Mark motor as rotating
         safe_write_to_eeprom(&deviceState);
-
-        DEBUG_PRINT("rotate_steps_512: Marking movement as in progress.\n");
     }
 
-    reset_and_realign();
     rotate(steps_per_drop, true);
 
     if (safe_read_from_eeprom(&deviceState)) {
-        deviceState.current_motor_step = current_motor_step;
-        deviceState.in_progress = false;
+        deviceState.motor_was_rotating = false; // Mark motor as not rotating
+        printf("rotating: false");
         safe_write_to_eeprom(&deviceState);
-
-        DEBUG_PRINT("rotate_steps_512: Motor step saved to EEPROM. Movement complete.\n");
     }
+
+    DEBUG_PRINT("rotate_steps_512: Pill dispensed. Current step: %d\n", current_motor_step);
 }
 
 // Setup function to initialize motor and GPIO pins
@@ -242,12 +226,9 @@ void setup() {
     gpio_init(MOTOR_PIN4);
     gpio_set_dir(MOTOR_PIN4, GPIO_OUT);
 
-    DEBUG_PRINT("Attempting to read motor state from EEPROM...\n");
-
     DeviceState deviceState;
     if (!safe_read_from_eeprom(&deviceState)) {
         DEBUG_PRINT("EEPROM read failed. Initializing default state.\n");
-        reset_eeprom_internal();
         steps_per_revolution = 512;
         steps_per_drop = steps_per_revolution / 8;
         current_motor_step = 0;
@@ -257,6 +238,8 @@ void setup() {
         deviceState.steps_per_drop = steps_per_drop;
         deviceState.current_motor_step = current_motor_step;
         deviceState.motor_calibrated = is_calibrated;
+        deviceState.motor_was_rotating = false;
+        deviceState.calibrating = false;
         deviceState.in_progress = false;
         safe_write_to_eeprom(&deviceState);
 
@@ -267,9 +250,15 @@ void setup() {
         current_motor_step = deviceState.current_motor_step;
         is_calibrated = deviceState.motor_calibrated;
 
-        DEBUG_PRINT("Motor state loaded: steps_per_revolution=%d, steps_per_drop=%d, current_motor_step=%d\n",
+        if (deviceState.calibrating) {
+            DEBUG_PRINT("Device was turned while calibrating. Restarting calibration...\n");
+            calibrate();
+        } else if (deviceState.motor_was_rotating) {
+            DEBUG_PRINT("Device was turned off while motor was rotating. Realigning...\n");
+            reset_and_realign();
+        }
+
+        DEBUG_PRINT("Motor setup complete. Steps per revolution: %d, Steps per drop: %d, Current step: %d\n",
                     steps_per_revolution, steps_per_drop, current_motor_step);
     }
-
-    DEBUG_PRINT("Motor setup complete.\n");
 }
