@@ -30,4 +30,5 @@ bool loraInit();
 bool loraMessage(const char *message, size_t msg_size, char *return_message);
 void loraWanInit();
 bool process_join_response(const char *initial_response);
+void send_lorawan_message(const char *message);
 #endif

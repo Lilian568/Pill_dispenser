@@ -18,18 +18,6 @@ static int last_saved_motor_step = -1;
 
 
 
-// Function to send a message over LoRaWAN
-void send_lorawan_message(const char *message) {
-    //printf("Sending LoRaWAN message: %s\n", message);
-    char retval_str[256];
-
-    if (!loraMessage(message, strlen(message), retval_str)) {
-        //printf("[ERROR] Failed to send LoRaWAN message: %s\n", message);
-    } else {
-        //printf("[INFO] LoRaWAN message sent successfully: %s\n", retval_str);
-    }
-}
-
 int main() {
     timer_hw->dbgpause = 0;
     stdio_init_all();
@@ -37,12 +25,8 @@ int main() {
     ledsInit();
     pwmInit();
     buttonsInit();
-    setup();
-    setupPiezoSensor();
     loraWanInit();
-
-    last_eeprom_update_time = get_absolute_time();
-    last_saved_motor_step = get_current_motor_step();
+    setupPiezoSensor();
 
     printf("Initializing LoRaWAN...\n");
     bool lora_connected = false;
@@ -54,6 +38,10 @@ int main() {
         }
     }
     printf("LoRaWAN connected.\n");
+
+    setup();
+    last_eeprom_update_time = get_absolute_time();
+    last_saved_motor_step = get_current_motor_step();
     DeviceState deviceState;
 
     // Safely load the state from EEPROM
@@ -112,7 +100,8 @@ int main() {
                     deviceState.portion_count = 0;
                     safe_write_to_eeprom(&deviceState);
                     last_saved_motor_step = deviceState.current_motor_step;
-                    DEBUG_PRINT("Calibration complete. State saved to EEPROM.\n");
+                    DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                                deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated, deviceState.current_motor_step);
 
                     state1_logged = false;
                     state2_logged = false;
@@ -137,12 +126,12 @@ int main() {
                     printf("Dispensing activated.\n");
 
                     if (!dispensingAndDetecting()) {
-                        send_lorawan_message("Pill not detected during dispensing.");
                         printf("Pill not detected.\n");
                         blinkError(5);
+                        send_lorawan_message("Pill not detected during dispensing.");
                     } else {
-                        send_lorawan_message("Pill detected during dispensing.");
                         printf("Pill dispensed.\n");
+                        send_lorawan_message("Pill detected during dispensing.");
                     }
 
                     deviceState.portion_count++;
@@ -151,17 +140,18 @@ int main() {
                     deviceState.current_motor_step = get_current_motor_step();
                     safe_write_to_eeprom(&deviceState);
                     last_saved_motor_step = deviceState.current_motor_step;
-                    DEBUG_PRINT("State saved to EEPROM after dispensing. Current motor step: %d\n", get_current_motor_step());
+                    DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                                deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated, deviceState.current_motor_step);
                 } else if (time_since_last_press >= step_delay_ms && !is_nil_time(last_time_sw2_pressed)) {
-                    DEBUG_PRINT("Time delay met. Rotating motor.\n");
+                    printf("Time delay met. Dispensing next pill.\n");
 
                     if (!dispensingAndDetecting()) {
-                        send_lorawan_message("Pill not detected during dispensing.");
                         printf("Pill not detected.\n");
                         blinkError(5);
+                        send_lorawan_message("Pill not detected during dispensing.");
                     } else {
-                        send_lorawan_message("Pill detected during dispensing.");
                         printf("Pill dispensed.\n");
+                        send_lorawan_message("Pill detected during dispensing.");
                     }
 
                     deviceState.portion_count++;
@@ -170,12 +160,13 @@ int main() {
                     deviceState.current_motor_step = get_current_motor_step();
                     safe_write_to_eeprom(&deviceState);
                     last_saved_motor_step = deviceState.current_motor_step;
-                    DEBUG_PRINT("State saved to EEPROM after delay dispensing. Current motor step: %d\n", get_current_motor_step());
+                    DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                                deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated, deviceState.current_motor_step);
                 }
 
                 if (deviceState.portion_count >= max_portion) {
+                    printf("Max portions reached. Resetting.\n");
                     send_lorawan_message("Max portions reached.");
-                    DEBUG_PRINT("Max portions reached. Resetting.\n");
                     deviceState.current_state = 1; // Reset to calibration state
                     deviceState.portion_count = 0;
                     deviceState.motor_calibrated = false;
@@ -187,6 +178,8 @@ int main() {
                 DEBUG_PRINT("Unknown state: %d. Resetting to state 1.\n", deviceState.current_state);
                 deviceState.current_state = 1;
                 safe_write_to_eeprom(&deviceState);
+            DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
+                                deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated, deviceState.current_motor_step);
                 break;
         }
 

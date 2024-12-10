@@ -42,14 +42,13 @@ void send_uart_command(const char *command) {
     char cmd_with_newline[512];
     snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", command);
     uart_puts(UART_ID, cmd_with_newline);
-    //printf("Sent command: %s", cmd_with_newline);
 
     for (size_t i = 0; i < strlen(cmd_with_newline); i++) {
         //printf("Sent char[%zu]: 0x%x\n", i, cmd_with_newline[i]);
     }
 }
 
-// Lue UART-vastaus
+// Read
 bool read_uart_response(char *response, size_t response_len) {
     size_t index = 0;
     absolute_time_t global_timeout = make_timeout_time_us(VERY_LONG_TIMEOUT_US); // Kokonaisaika vastaukselle
@@ -183,7 +182,7 @@ bool process_join_response(const char *initial_response) {
             // Tarkista liittymisen hyväksyntä
             if (strstr(response, "+JOIN: Done")) {
                 //printf("Join successful. Network ready.\n");
-                sleep_ms(MSG_WAITING_TIME);
+                sleep_ms(STD_WAITING_TIME);
                 return true; // Liittyminen onnistui
             }
 
@@ -214,4 +213,77 @@ bool loraMessage(const char *message, size_t msg_size, char *return_message) {
 
     //printf("Message sent successfully: %s\n", return_message);
     return true;
+}
+void send_lorawan_message(const char *message) {
+    printf("Sending LoRaWAN message: %s\n", message);
+    char response[256];
+    int join_attempts = 0;
+
+    while (join_attempts < 3) { // Yritä yhdistää enintään 3 kertaa
+        // Lähetä viesti
+        char command[128];
+        snprintf(command, sizeof(command), "AT+MSG=\"%s\"\r\n", message);
+        send_uart_command(command);
+
+        printf("Waiting for confirmation response...\n");
+
+        // Odota vastausta `+MSG: Done`
+        absolute_time_t timeout = make_timeout_time_ms(VERY_LONG_TIMEOUT_US);
+        bool msg_done_received = false;
+
+        while (absolute_time_diff_us(get_absolute_time(), timeout) > 0) {
+            if (read_uart_response(response, sizeof(response))) {
+
+                // Tarkista `+MSG: Done`
+                if (strstr(response, "+MSG: Done")) {
+                    msg_done_received = true;
+                    printf("[INFO] Confirmation received: +MSG: Done\n");
+                    return; // Lopeta, jos viesti onnistui
+                }
+                // Tarkista `+MSG: FPENDING`
+                else if (strstr(response, "+MSG: FPENDING")) {
+                    printf("[WARNING] Message pending, will retry...\n");
+                }
+                // Tarkista, onko verkkoon liittyminen tarpeen
+                else if (strstr(response, "+MSG: Please join network first")) {
+                    printf("[WARNING] Not connected to LoRaWAN network. Sending join request...\n");
+
+                    // Lähetä join-komento
+                    send_uart_command("AT+JOIN\r\n");
+
+                    // Käsittele "join"-prosessin vastaukset
+                    bool join_success = false;
+                    while (absolute_time_diff_us(get_absolute_time(), timeout) > 0) {
+                        if (read_uart_response(response, sizeof(response))) {
+                            printf("Join response: %s\n", response);
+
+                            if (strstr(response, "+JOIN: Done")) {
+                                printf("[INFO] Successfully joined LoRaWAN network.\n");
+                                join_success = true;
+                                return;
+                            } else if (strstr(response, "+JOIN: FAIL")) {
+                                printf("[ERROR] Join failed. Retrying...\n");
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!join_success) {
+                        printf("[ERROR] Failed to join network. Retrying...\n");
+                        join_attempts++;
+                        break;
+                    }
+                }
+            }
+
+            if (!msg_done_received) {
+                printf("[ERROR] Timeout waiting for confirmation: +MSG: Done\n");
+                break;
+            }
+        }
+
+        if (join_attempts >= 3) {
+            printf("[ERROR] Failed to join network after multiple attempts. Message not sent.\n");
+        }
+    }
 }

@@ -6,6 +6,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "lorawan.h"
 #include "state.h"
 
 #define OPTOFORK_PIN 28
@@ -80,14 +82,12 @@ void rotate(int step_count, bool update_eeprom) {
 void fine_tune_position() {
     if (steps_per_revolution > 0) {
         int fine_tune_steps = steps_per_revolution / 13;
-        DEBUG_PRINT("Fine-tuning position by %d steps.\n", fine_tune_steps);
         rotate(fine_tune_steps, false);
     }
 }
 void fine_tune_position_2() {
     if (steps_per_revolution > 0) {
         int fine_tune_steps = steps_per_revolution / 12;
-        DEBUG_PRINT("Fine-tuning position by %d steps.\n", fine_tune_steps);
         rotate(fine_tune_steps, false);
     }
 }
@@ -105,7 +105,7 @@ void calibrate() {
 
     int step_count = 0;
     int revolutions_total = 0;
-    const int valid_iterations = 1; // Number of calibration iterations
+    const int valid_iterations = 2; // Number of calibration iterations
 
     for (int i = 0; i <= valid_iterations; i++) {
         step_count = 0;
@@ -116,6 +116,7 @@ void calibrate() {
             step_count++;
             sleep_ms(1);
         }
+        sleep_ms(100);
         while (!gpio_get(OPTOFORK_PIN)) {
             rotate(1, false);
             step_count++;
@@ -131,10 +132,11 @@ void calibrate() {
     steps_per_drop = steps_per_revolution / 8;
     is_calibrated = true;
 
-    DEBUG_PRINT("Calibration complete. Steps per revolution: %d, Steps per drop: %d\n", steps_per_revolution, steps_per_drop);
+
 
     fine_tune_position();
     sleep_ms(100);
+    printf("Calibration complete.\n");
 
     current_motor_step = 0;
 
@@ -166,26 +168,23 @@ void reset_and_realign() {
         return;
     }
 
-    DEBUG_PRINT("reset_and_realign: Moving back to sensor...\n");
     while (gpio_get(OPTOFORK_PIN) == 1) {
         rotate(-1, false);
         sleep_ms(1);
     }
         fine_tune_position_2();
 
-    //DEBUG_PRINT("reset_and_realign: Fine-tuning position after reaching sensor.\n");
-    //fine_tune_position();
-
-    DEBUG_PRINT("reset_and_realign: Moving to saved step: %d\n", deviceState.current_motor_step);
+    DEBUG_PRINT("Adjusting the sensor back correct step: %d\n", deviceState.current_motor_step);
     rotate(deviceState.current_motor_step, false);
 
     current_motor_step = deviceState.current_motor_step;
-    deviceState.in_progress = false;
-    deviceState.motor_was_rotating = false;
-    printf("in progress = false");
+    if (safe_read_from_eeprom(&deviceState)) {
+        deviceState.motor_was_rotating = false; // Calibration complete, motor not rotating
+        deviceState.in_progress = false;
+        safe_write_to_eeprom(&deviceState);
+    }
     safe_write_to_eeprom(&deviceState);
 
-    DEBUG_PRINT("reset_and_realign: Motor realigned to step: %d\n", current_motor_step);
 }
 
 // Rotate motor for dispensing one drop
@@ -204,11 +203,9 @@ void rotate_steps_512() {
 
     if (safe_read_from_eeprom(&deviceState)) {
         deviceState.motor_was_rotating = false; // Mark motor as not rotating
-        printf("rotating: false");
         safe_write_to_eeprom(&deviceState);
     }
 
-    DEBUG_PRINT("rotate_steps_512: Pill dispensed. Current step: %d\n", current_motor_step);
 }
 
 // Setup function to initialize motor and GPIO pins
@@ -252,9 +249,11 @@ void setup() {
 
         if (deviceState.calibrating) {
             DEBUG_PRINT("Device was turned while calibrating. Restarting calibration...\n");
+            send_lorawan_message("Device was turned off");
             calibrate();
         } else if (deviceState.motor_was_rotating) {
             DEBUG_PRINT("Device was turned off while motor was rotating. Realigning...\n");
+            send_lorawan_message("Device was turned off.");
             reset_and_realign();
         }
 
