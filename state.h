@@ -20,6 +20,7 @@ typedef struct DeviceState {
     int start_motor_step;
     bool motor_was_rotating;
     bool calibrating;
+    bool continue_dispensing;
 } DeviceState;
 
 // External mutex for EEPROM operations

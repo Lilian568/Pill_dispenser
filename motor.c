@@ -98,7 +98,6 @@ void calibrate() {
 
     DeviceState deviceState;
     if (safe_read_from_eeprom(&deviceState)) {
-        deviceState.motor_was_rotating = true; // Mark motor as rotating during calibration
         deviceState.calibrating = true;       // Mark calibration as in progress
         safe_write_to_eeprom(&deviceState);
     }
@@ -149,8 +148,8 @@ void calibrate() {
         deviceState.steps_per_revolution = steps_per_revolution;
         deviceState.steps_per_drop = steps_per_drop;
         deviceState.current_motor_step = 0;
-        deviceState.motor_was_rotating = false; // Calibration complete, motor not rotating
-        deviceState.calibrating = false;       // Calibration complete
+        deviceState.calibrating = false;
+        deviceState.continue_dispensing = false;
         safe_write_to_eeprom(&deviceState);
     }
 }
@@ -255,6 +254,8 @@ void setup() {
             DEBUG_PRINT("Device was turned off while motor was rotating. Realigning...\n");
             send_lorawan_message("Device was turned off.");
             reset_and_realign();
+            deviceState.continue_dispensing = true;
+            safe_write_to_eeprom(&deviceState);
         }
 
         DEBUG_PRINT("Motor setup complete. Steps per revolution: %d, Steps per drop: %d, Current step: %d\n",

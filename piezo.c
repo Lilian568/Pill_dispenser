@@ -67,13 +67,13 @@ bool dispensingAndDetecting() {
     bool result = (falling_edges >= LOW_SIGNAL_THRESHOLD ||
                    spikes >= SPIKE_THRESHOLD);
 
-    if (result) {
+    /*if (result) {
         DEBUG_PRINT("Pill detected! Falling edges = %d, Spikes = %d",
                     falling_edges, spikes);
     } else {
         DEBUG_PRINT("No pill detected. Falling edges = %d, Spikes = %d",
                     falling_edges, spikes);
-    }
+    }*/
 
     return result;
 }
