@@ -177,7 +177,7 @@ void reset_and_realign() {
 
     current_motor_step = deviceState.current_motor_step;
     if (safe_read_from_eeprom(&deviceState)) {
-        deviceState.motor_was_rotating = false; // Calibration complete, motor not rotating
+        deviceState.motor_was_rotating = false;
         safe_write_to_eeprom(&deviceState);
     }
     safe_write_to_eeprom(&deviceState);

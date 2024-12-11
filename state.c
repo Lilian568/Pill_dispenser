@@ -71,7 +71,6 @@ bool write_to_eeprom_internal(const DeviceState *state) {
         return false;
     }
 
-    DEBUG_PRINT("State and checksum written to EEPROM successfully.\n");
     return true;
 }
 
@@ -108,7 +107,6 @@ bool read_from_eeprom_internal(DeviceState *state) {
         return false;
     }
 
-    DEBUG_PRINT("Checksum validated. Data is intact.\n");
     return true;
 }
 // Reset EEPROM to default state

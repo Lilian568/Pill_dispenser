@@ -51,6 +51,7 @@ int main() {
         deviceState.current_state = 1; // Set default state
         deviceState.portion_count = 0;
         deviceState.motor_calibrated = false;
+        deviceState.dispensing_state_active = false;
         set_current_motor_step(0);
         last_saved_motor_step = 0;
         safe_write_to_eeprom(&deviceState);
@@ -61,6 +62,12 @@ int main() {
             deviceState.motor_calibrated, deviceState.current_motor_step);
         set_current_motor_step(deviceState.current_motor_step);
         last_saved_motor_step = deviceState.current_motor_step;
+    }
+
+    if (deviceState.current_state == 2 && deviceState.dispensing_state_active) {
+        printf("Power off during dispensing state, returning to dispensing\n");
+        send_lorawan_message("Powered off during dispensing state");
+        deviceState.continue_dispensing = true;
     }
 
     // If the motor is calibrated, load calibration data and realign
@@ -74,7 +81,7 @@ int main() {
     bool state1_logged = false;
     bool state2_logged = false;
     absolute_time_t last_time_sw2_pressed = nil_time;
-    const uint32_t step_delay_ms = 5000; // Delay between steps in milliseconds
+    const uint32_t step_delay_ms = 30000; // Delay between steps in milliseconds
     const int max_portion = 7; // Maximum portions allowed
 
     while (true) {
@@ -116,7 +123,7 @@ int main() {
             case 2: // Dispensing state
                 if (!state2_logged) {
                     send_lorawan_message("Dispensing state.");
-                    if (!deviceState.continue_dispensing) {
+                    if (!deviceState.continue_dispensing || !deviceState.dispensing_state_active) {
                         printf("Press SW2 for dispensing.\n");
                     }
                     allLedsOn();
@@ -134,16 +141,32 @@ int main() {
                     if (!dispensingAndDetecting()) {
                         printf("Pill not detected.\n");
                         blinkError(5);
-                        send_lorawan_message("Pill not detected during dispensing.");
+
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = get_absolute_time();
+                        deviceState.continue_dispensing = false;
+                        deviceState.motor_was_rotating = false;
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill not detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
                     } else {
                         printf("Pill dispensed.\n");
-                        send_lorawan_message("Pill detected during dispensing.");
+
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = get_absolute_time();
+                        deviceState.continue_dispensing = false;
+                        deviceState.motor_was_rotating = false;
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
                     }
 
-                    deviceState.portion_count++;
-                    last_time_sw2_pressed = get_absolute_time();
-                    deviceState.continue_dispensing = false;
-                    safe_write_to_eeprom(&deviceState);
 
                     deviceState.current_motor_step = get_current_motor_step();
                     safe_write_to_eeprom(&deviceState);
@@ -155,24 +178,40 @@ int main() {
                 }
 
                 if (isButtonPressed(SW_2)) {
+                    deviceState.dispensing_state_active = true;
                     allLedsOff();
                     printf("Dispensing activated.\n");
 
                     if (!dispensingAndDetecting()) {
                         printf("Pill not detected.\n");
                         blinkError(5);
-                        send_lorawan_message("Pill not detected during dispensing.");
+
+                        deviceState.motor_was_rotating = false;
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = current_time;
+                        deviceState.current_motor_step = get_current_motor_step();
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill not detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
+                        last_saved_motor_step = deviceState.current_motor_step;
                     } else {
                         printf("Pill dispensed.\n");
-                        send_lorawan_message("Pill detected during dispensing.");
+
+                        deviceState.motor_was_rotating = false;
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = current_time;
+                        deviceState.current_motor_step = get_current_motor_step();
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
+                        last_saved_motor_step = deviceState.current_motor_step;
                     }
-
-                    deviceState.portion_count++;
-                    last_time_sw2_pressed = current_time;
-
-                    deviceState.current_motor_step = get_current_motor_step();
-                    safe_write_to_eeprom(&deviceState);
-                    last_saved_motor_step = deviceState.current_motor_step;
                     DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
                                 deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated,
                                 deviceState.current_motor_step);
@@ -182,18 +221,31 @@ int main() {
                     if (!dispensingAndDetecting()) {
                         printf("Pill not detected.\n");
                         blinkError(5);
-                        send_lorawan_message("Pill not detected during dispensing.");
+                        deviceState.motor_calibrated = false;
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = current_time;
+                        deviceState.current_motor_step = get_current_motor_step();
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill not detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
+                        last_saved_motor_step = deviceState.current_motor_step;
                     } else {
                         printf("Pill dispensed.\n");
-                        send_lorawan_message("Pill detected during dispensing.");
+                        deviceState.motor_calibrated = false;
+                        deviceState.portion_count++;
+                        last_time_sw2_pressed = current_time;
+                        deviceState.current_motor_step = get_current_motor_step();
+
+                        if (safe_write_to_eeprom(&deviceState)) {
+                            send_lorawan_message("Pill detected during dispensing.");
+                        } else {
+                            printf("[ERROR] Failed to write to EEPROM.\n");
+                        }
+                        last_saved_motor_step = deviceState.current_motor_step;
                     }
-
-                    deviceState.portion_count++;
-                    last_time_sw2_pressed = current_time;
-
-                    deviceState.current_motor_step = get_current_motor_step();
-                    safe_write_to_eeprom(&deviceState);
-                    last_saved_motor_step = deviceState.current_motor_step;
                     DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
                                 deviceState.current_state, deviceState.portion_count, deviceState.motor_calibrated,
                                 deviceState.current_motor_step);
@@ -206,6 +258,7 @@ int main() {
                     deviceState.portion_count = 0;
                     deviceState.motor_calibrated = false;
                     deviceState.motor_was_rotating = false;
+                    deviceState.dispensing_state_active = false;
                     safe_write_to_eeprom(&deviceState);
                 }
                 break;

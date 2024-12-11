@@ -18,6 +18,7 @@ typedef struct DeviceState {
     bool motor_was_rotating;    // Indicator if motor was rotating
     bool calibrating;           // Indicator if motor was in middle of calibration
     bool continue_dispensing;   // Indicator for continuing dispensing after reset
+    bool dispensing_state_active; // Indicator if we are on the dispensing state
 } DeviceState;
 
 // External mutex for EEPROM operations

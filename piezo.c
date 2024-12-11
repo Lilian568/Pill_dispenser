@@ -6,6 +6,7 @@
 #include "pico/time.h"
 #include "motor.h"
 
+
 #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
 // Global variables for tracking signals in interrupts
