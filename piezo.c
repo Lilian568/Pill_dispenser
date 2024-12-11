@@ -63,17 +63,8 @@ bool dispensingAndDetecting() {
     sleep_ms(PILL_DETECTION_MS);  // Enough time for the pill to hit the sensor
     disablePiezoInterrupt();
 
-    // Analyze collected data
     bool result = (falling_edges >= LOW_SIGNAL_THRESHOLD ||
                    spikes >= SPIKE_THRESHOLD);
-
-    /*if (result) {
-        DEBUG_PRINT("Pill detected! Falling edges = %d, Spikes = %d",
-                    falling_edges, spikes);
-    } else {
-        DEBUG_PRINT("No pill detected. Falling edges = %d, Spikes = %d",
-                    falling_edges, spikes);
-    }*/
 
     return result;
 }

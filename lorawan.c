@@ -214,8 +214,7 @@ bool loraMessage(const char *message, size_t msg_size, char *return_message) {
 
     //printf("Message sent successfully: %s\n", return_message);
     return true;
-}
-void send_lorawan_message(const char *message) {
+}void send_lorawan_message(const char *message) {
     printf("Sending LoRaWAN message: %s\n", message);
     char response[256];
 
@@ -226,7 +225,7 @@ void send_lorawan_message(const char *message) {
 
     printf("Waiting for confirmation response...\n");
 
-    // Wait for message to go trough
+    // Odota vastausta
     absolute_time_t timeout = make_timeout_time_ms(VERY_LONG_TIMEOUT_US);
     bool msg_done_received = false;
 
@@ -240,7 +239,14 @@ void send_lorawan_message(const char *message) {
                 printf("[INFO] Confirmation received: +MSG: Done\n");
                 sleep_ms(200);
                 break;
-            } else if (strstr(response, "+MSG: FPENDING")) {
+            }
+            // Tarkista, onko verkkoa vaadittava viesti
+            else if (strstr(response, "+MSG: Please join network first")) {
+                printf("[WARNING] LoRa is not connected to the network\n");
+                return; // Poistu funktiosta ilman odotuksia
+            }
+            // Tarkista, onko viesti odottamassa
+            else if (strstr(response, "+MSG: FPENDING")) {
                 printf("[WARNING] Message pending, waiting for confirmation..\n");
             }
         }

@@ -36,31 +36,42 @@ bool safe_write_to_eeprom(const DeviceState *state) {
     return success;
 }
 
-// Internal function to write state to EEPROM
+// Internal function for writing
 bool write_to_eeprom_internal(const DeviceState *state) {
     if (state->current_state < 1 || state->current_state > 2) {
         DEBUG_PRINT("Attempting to write invalid state to EEPROM: state=%d\n", state->current_state);
         return false;
     }
 
-    eeprom_write_bytes(STATE_MEMORY_ADDRESS, (const uint8_t *)state, sizeof(DeviceState));
+    uint16_t checksum = crc16((const uint8_t *)state, sizeof(DeviceState));
 
-    DeviceState verify_state;
-    if (!read_from_eeprom_internal(&verify_state)) {
+    uint8_t buffer[sizeof(DeviceState) + sizeof(uint16_t)];
+    memcpy(buffer, state, sizeof(DeviceState));
+    memcpy(buffer + sizeof(DeviceState), &checksum, sizeof(uint16_t));
+
+    eeprom_write_bytes(STATE_MEMORY_ADDRESS, buffer, sizeof(buffer));
+    sleep_ms(200);
+
+    uint8_t verify_buffer[sizeof(DeviceState) + sizeof(uint16_t)];
+    uint8_t addr[2] = {
+        (STATE_MEMORY_ADDRESS >> 8) & 0xFF,
+        STATE_MEMORY_ADDRESS & 0xFF
+    };
+    i2c_write_blocking(i2c0, DEVADDR, addr, 2, true); // Aseta osoite
+    if (i2c_read_blocking(i2c0, DEVADDR, verify_buffer, sizeof(verify_buffer), false) < 0) {
         DEBUG_PRINT("Failed to verify EEPROM write.\n");
         return false;
     }
 
-    if (state->current_state != verify_state.current_state ||
-        state->portion_count != verify_state.portion_count ||
-        state->motor_calibrated != verify_state.motor_calibrated ||
-        state->current_motor_step != verify_state.current_motor_step) {
+    if (memcmp(buffer, verify_buffer, sizeof(buffer)) != 0) {
         DEBUG_PRINT("EEPROM write verification failed.\n");
+        for (size_t i = 0; i < sizeof(buffer); i++) {
+            printf("[DEBUG] Written byte: 0x%02X, Read byte: 0x%02X\n", buffer[i], verify_buffer[i]);
+        }
         return false;
     }
 
-    //DEBUG_PRINT("State written to EEPROM successfully: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
-                //state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
+    DEBUG_PRINT("State and checksum written to EEPROM successfully.\n");
     return true;
 }
 
@@ -74,32 +85,32 @@ bool safe_read_from_eeprom(DeviceState *state) {
 
 // Internal function to read state from EEPROM
 bool read_from_eeprom_internal(DeviceState *state) {
-    uint8_t buf[2] = {
+    uint8_t buffer[sizeof(DeviceState) + sizeof(uint16_t)];
+
+    uint8_t address_bytes[2] = {
         (uint8_t)(STATE_MEMORY_ADDRESS >> 8), // Upper byte
         (uint8_t)(STATE_MEMORY_ADDRESS)      // Lower byte
     };
-
-    if (i2c_write_blocking(i2c0, DEVADDR, buf, 2, true) < 0) {
-        DEBUG_PRINT("Failed to set EEPROM read address.\n");
-        return false;
-    }
-
-    if (i2c_read_blocking(i2c0, DEVADDR, (uint8_t *)state, sizeof(DeviceState), false) < 0) {
+    if (i2c_write_blocking(i2c0, DEVADDR, address_bytes, 2, true) < 0 ||
+        i2c_read_blocking(i2c0, DEVADDR, buffer, sizeof(buffer), false) < 0) {
         DEBUG_PRINT("Failed to read from EEPROM.\n");
         return false;
-    }
+        }
 
-    if (state->current_state < 1 || state->current_state > 2) {
-        DEBUG_PRINT("Unknown state: %d. Resetting to default state.\n", state->current_state);
-        reset_eeprom_internal(state);
+    memcpy(state, buffer, sizeof(DeviceState));
+    uint16_t stored_checksum;
+    memcpy(&stored_checksum, buffer + sizeof(DeviceState), sizeof(uint16_t));
+
+    uint16_t calculated_checksum = crc16((const uint8_t *)state, sizeof(DeviceState));
+
+    if (stored_checksum != calculated_checksum) {
+        DEBUG_PRINT("Checksum mismatch. Data may be corrupted.\n");
         return false;
     }
 
-    //DEBUG_PRINT("Read state: state=%d, portion_count=%d, motor_calibrated=%d, current_motor_step=%d\n",
-                //state->current_state, state->portion_count, state->motor_calibrated, state->current_motor_step);
+    DEBUG_PRINT("Checksum validated. Data is intact.\n");
     return true;
 }
-
 // Reset EEPROM to default state
 void reset_eeprom_internal(DeviceState *state) {
     DeviceState default_state = {
@@ -110,11 +121,15 @@ void reset_eeprom_internal(DeviceState *state) {
         .steps_per_drop = 0,
         .current_motor_step = 0
     };
+
+    uint16_t checksum = crc16((const uint8_t *)&default_state, sizeof(DeviceState));
+    uint8_t buffer[sizeof(DeviceState) + sizeof(uint16_t)];
+    memcpy(buffer, &default_state, sizeof(DeviceState));
+    memcpy(buffer + sizeof(DeviceState), &checksum, sizeof(uint16_t));
+    eeprom_write_bytes(STATE_MEMORY_ADDRESS, buffer, sizeof(buffer));
     memcpy(state, &default_state, sizeof(DeviceState));
-    eeprom_write_bytes(STATE_MEMORY_ADDRESS, (const uint8_t *)state, sizeof(DeviceState));
     DEBUG_PRINT("EEPROM reset to default state.\n");
 }
-
 // Initialize EEPROM and mutex
 void eepromInit() {
     i2c_init(I2C_PORT, BAUDRATE);
@@ -123,4 +138,16 @@ void eepromInit() {
     gpio_pull_up(I2C_SDA);
     gpio_pull_up(I2C_SCL);
     mutex_init(&eeprom_mutex);
+}
+
+// Checksum calculations
+uint16_t crc16(const uint8_t *data_p, size_t length) {
+    uint8_t x;
+    uint16_t crc = 0xFFFF;
+    while (length--) {
+        x = crc >> 8 ^ *data_p++;
+        x ^= x >> 4;
+        crc = (crc << 8) ^ ((uint16_t)(x << 12)) ^ ((uint16_t)(x << 5)) ^ ((uint16_t)x);
+    }
+    return crc;
 }

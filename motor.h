@@ -3,13 +3,9 @@
 
 #include <stdbool.h>
 
-// External variable representing the number of steps per revolution
+
 extern int steps_per_revolution;
-
-// External variable representing the number of steps for one pill dispense
 extern int steps_per_drop;
-
-// Flag indicating whether the motor has been calibrated
 extern bool is_calibrated;
 
 // Initialize the motor and associated hardware
@@ -30,17 +26,8 @@ void calibrate();
 // Rotate the motor by the calibrated number of steps for one pill dispense
 void rotate_steps_512();
 
-// Test EEPROM connection
-void test_eeprom_connection();
-
 // Check and realign motor position if necessary
-void realign_after_interruption();
-
 void reset_and_realign();
-
-
-// motor.h
-void maybe_update_eeprom_periodically(void);
 
 // Getter for the current motor step
 int get_current_motor_step();

@@ -116,7 +116,7 @@ int main() {
             case 2: // Dispensing state
                 if (!state2_logged) {
                     send_lorawan_message("Dispensing state.");
-                    if (!deviceState.continue_dispensing) { // Tulosta vain, jos emme ole jatkamassa annostelua
+                    if (!deviceState.continue_dispensing) {
                         printf("Press SW2 for dispensing.\n");
                     }
                     allLedsOn();
@@ -142,10 +142,9 @@ int main() {
 
                     deviceState.portion_count++;
                     last_time_sw2_pressed = get_absolute_time();
-                    deviceState.continue_dispensing = false; // Jatkoannostelu suoritettu
+                    deviceState.continue_dispensing = false;
                     safe_write_to_eeprom(&deviceState);
 
-                    // Päivitä moottorin tila EEPROM:iin
                     deviceState.current_motor_step = get_current_motor_step();
                     safe_write_to_eeprom(&deviceState);
                     last_saved_motor_step = deviceState.current_motor_step;
@@ -206,6 +205,7 @@ int main() {
                     deviceState.current_state = 1; // Reset to calibration state
                     deviceState.portion_count = 0;
                     deviceState.motor_calibrated = false;
+                    deviceState.motor_was_rotating = false;
                     safe_write_to_eeprom(&deviceState);
                 }
                 break;

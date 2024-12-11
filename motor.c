@@ -41,7 +41,7 @@ void setSteps(int step) {
     gpio_put(MOTOR_PIN2, steps[step][1]);
     gpio_put(MOTOR_PIN3, steps[step][2]);
     gpio_put(MOTOR_PIN4, steps[step][3]);
-    sleep_ms(1); // Delay to stabilize the motor
+    sleep_ms(1);
 }
 
 // Returns the current motor step
@@ -49,7 +49,7 @@ int get_current_motor_step() {
     return current_motor_step;
 }
 
-// Sets the current motor step using modulo operation to handle overflow
+// Sets the current motor step
 void set_current_motor_step(int step) {
     if (steps_per_revolution > 0) {
         current_motor_step = (step % steps_per_revolution + steps_per_revolution) % steps_per_revolution;
@@ -60,7 +60,7 @@ void set_current_motor_step(int step) {
 
 // Rotate the motor by a given number of steps
 void rotate(int step_count, bool update_eeprom) {
-    int direction = (step_count > 0) ? 1 : -1; // Determine rotation direction
+    int direction = (step_count > 0) ? 1 : -1;
     step_count = abs(step_count);
 
     for (int i = 0; i < step_count; i++) {
@@ -98,18 +98,17 @@ void calibrate() {
 
     DeviceState deviceState;
     if (safe_read_from_eeprom(&deviceState)) {
-        deviceState.calibrating = true;       // Mark calibration as in progress
+        deviceState.calibrating = true;
         safe_write_to_eeprom(&deviceState);
     }
 
     int step_count = 0;
     int revolutions_total = 0;
-    const int valid_iterations = 2; // Number of calibration iterations
+    const int valid_iterations = 2;
 
     for (int i = 0; i <= valid_iterations; i++) {
         step_count = 0;
 
-        // Rotate forward until the optical sensor detects a full revolution
         while (gpio_get(OPTOFORK_PIN)) {
             rotate(1, false);
             step_count++;
@@ -154,7 +153,7 @@ void calibrate() {
     }
 }
 
-// Reset and realign the motor to step 0
+// Reset and realign the motor
 void reset_and_realign() {
     if (!is_calibrated) {
         DEBUG_PRINT("reset_and_realign: Motor not calibrated.\n");
@@ -179,7 +178,6 @@ void reset_and_realign() {
     current_motor_step = deviceState.current_motor_step;
     if (safe_read_from_eeprom(&deviceState)) {
         deviceState.motor_was_rotating = false; // Calibration complete, motor not rotating
-        deviceState.in_progress = false;
         safe_write_to_eeprom(&deviceState);
     }
     safe_write_to_eeprom(&deviceState);
@@ -207,7 +205,7 @@ void rotate_steps_512() {
 
 }
 
-// Setup function to initialize motor and GPIO pins
+// Setup function to initialize device
 void setup() {
     gpio_init(OPTOFORK_PIN);
     gpio_set_dir(OPTOFORK_PIN, GPIO_IN);
@@ -236,7 +234,6 @@ void setup() {
         deviceState.motor_calibrated = is_calibrated;
         deviceState.motor_was_rotating = false;
         deviceState.calibrating = false;
-        deviceState.in_progress = false;
         safe_write_to_eeprom(&deviceState);
 
         DEBUG_PRINT("Default motor state saved to EEPROM.\n");
@@ -248,11 +245,11 @@ void setup() {
 
         if (deviceState.calibrating) {
             DEBUG_PRINT("Device was turned while calibrating. Restarting calibration...\n");
-            send_lorawan_message("Device was turned off");
+            send_lorawan_message("Device was turned off in calibration state");
             calibrate();
         } else if (deviceState.motor_was_rotating) {
             DEBUG_PRINT("Device was turned off while motor was rotating. Realigning...\n");
-            send_lorawan_message("Device was turned off.");
+            send_lorawan_message("Device was turned off in dispensing state.");
             reset_and_realign();
             deviceState.continue_dispensing = true;
             safe_write_to_eeprom(&deviceState);
