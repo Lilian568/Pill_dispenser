@@ -74,7 +74,6 @@ int main() {
     if (deviceState.motor_calibrated) {
         steps_per_revolution = deviceState.steps_per_revolution;
         steps_per_drop = deviceState.steps_per_drop;
-        DEBUG_PRINT("Motor calibratiaon data loaded.\n");
     }
 
     // Main program states and variables
@@ -136,7 +135,7 @@ int main() {
                                                                              current_time) / 1000;
 
                 if (deviceState.continue_dispensing) {
-                    printf("Continuing dispensing after power interruption...\n");
+                    printf("Dispensing after power interruption...\n");
 
                     if (!dispensingAndDetecting()) {
                         printf("Pill not detected.\n");
@@ -221,7 +220,7 @@ int main() {
                     if (!dispensingAndDetecting()) {
                         printf("Pill not detected.\n");
                         blinkError(5);
-                        deviceState.motor_calibrated = false;
+                        deviceState.motor_was_rotating= false;
                         deviceState.portion_count++;
                         last_time_sw2_pressed = current_time;
                         deviceState.current_motor_step = get_current_motor_step();
@@ -234,7 +233,7 @@ int main() {
                         last_saved_motor_step = deviceState.current_motor_step;
                     } else {
                         printf("Pill dispensed.\n");
-                        deviceState.motor_calibrated = false;
+                        deviceState.motor_was_rotating = false;
                         deviceState.portion_count++;
                         last_time_sw2_pressed = current_time;
                         deviceState.current_motor_step = get_current_motor_step();
