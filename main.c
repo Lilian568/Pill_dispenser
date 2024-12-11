@@ -37,6 +37,7 @@ int main() {
         }
     }
     printf("LoRaWAN connected.\n");
+    send_lorawan_message("BOOT");
 
     setup();
     last_eeprom_update_time = get_absolute_time();
@@ -82,7 +83,7 @@ int main() {
         switch (deviceState.current_state) {
             case 1: // Calibration state
                 if (!state1_logged) {
-                    send_lorawan_message("Calibration started.");
+                    send_lorawan_message("Calibration state.");
                     printf("Press SW0 to start calibration.\n");
                     state1_logged = true;
                 }
@@ -90,6 +91,7 @@ int main() {
                 blink();
 
                 if (isButtonPressed(SW_0)) {
+                    send_lorawan_message("Calibration started.");
                     calibrate();
                     send_lorawan_message("Calibration completed.");
                     deviceState.current_state = 2; // Move to dispensing state
@@ -113,7 +115,7 @@ int main() {
 
             case 2: // Dispensing state
                 if (!state2_logged) {
-                    send_lorawan_message("Dispensing started.");
+                    send_lorawan_message("Dispensing state.");
                     if (!deviceState.continue_dispensing) { // Tulosta vain, jos emme ole jatkamassa annostelua
                         printf("Press SW2 for dispensing.\n");
                     }
