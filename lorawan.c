@@ -217,11 +217,36 @@ bool loraMessage(const char *message, size_t msg_size, char *return_message) {
 }
 void send_lorawan_message(const char *message) {
     printf("Sending LoRaWAN message: %s\n", message);
-    char retval_str[256];
+    char response[256];
 
-    if (!loraMessage(message, strlen(message), retval_str)) {
-        printf("[ERROR] Failed to send LoRaWAN message: %s\n", message);
-    } else {
-        printf("[INFO] LoRaWAN message sent successfully: %s\n", retval_str);
+    // Lähetä viesti
+    char command[128];
+    snprintf(command, sizeof(command), "AT+MSG=\"%s\"\r\n", message);
+    send_uart_command(command);
+
+    printf("Waiting for confirmation response...\n");
+
+    // Wait for message to go trough
+    absolute_time_t timeout = make_timeout_time_ms(VERY_LONG_TIMEOUT_US);
+    bool msg_done_received = false;
+
+    while (absolute_time_diff_us(get_absolute_time(), timeout) > 0) {
+        if (read_uart_response(response, sizeof(response))) {
+            printf("Received response: %s\n", response);
+
+            // Tarkista, löytyykö `+MSG: Done`
+            if (strstr(response, "+MSG: Done")) {
+                msg_done_received = true;
+                printf("[INFO] Confirmation received: +MSG: Done\n");
+                sleep_ms(200);
+                break;
+            } else if (strstr(response, "+MSG: FPENDING")) {
+                printf("[WARNING] Message pending, waiting for confirmation..\n");
+            }
+        }
+    }
+
+    if (!msg_done_received) {
+        printf("[ERROR] Timeout waiting for confirmation: +MSG: Done\n");
     }
 }
