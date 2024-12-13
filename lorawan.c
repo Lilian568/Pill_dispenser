@@ -53,7 +53,7 @@ void send_uart_command(const char *command) {
 bool read_uart_response(char *response, size_t response_len) {
     size_t index = 0;
     absolute_time_t global_timeout = make_timeout_time_us(VERY_LONG_TIMEOUT_US); // Kokonaisaika vastaukselle
-    absolute_time_t char_timeout = make_timeout_time_us(MSG_WAITING_TIME); // Aika yhden merkin saapumiselle
+    absolute_time_t char_timeout = make_timeout_time_us(MSG_WAITING_TIME); //
 
     printf("Waiting for response...\n");
 

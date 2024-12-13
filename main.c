@@ -80,7 +80,7 @@ int main() {
     bool state1_logged = false;
     bool state2_logged = false;
     absolute_time_t last_time_sw2_pressed = nil_time;
-    const uint32_t step_delay_ms = 30000; // Delay between steps in milliseconds
+    const uint32_t step_delay_ms = 5000; // Delay between steps in milliseconds
     const int max_portion = 7; // Maximum portions allowed
 
     while (true) {
